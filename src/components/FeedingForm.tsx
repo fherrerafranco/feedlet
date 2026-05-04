@@ -11,8 +11,41 @@ interface FeedingFormProps {
   onCalculate: (input: FeedingInput) => void;
 }
 
+const NUMERIC_FIELDS = [
+  "restBeforeSleepMinutes",
+  "totalTargetScoops",
+  "stomachCapacityOz",
+  "waterOzPerScoop",
+  "firstMealScoops",
+  "firstMealWaterOz",
+] as const;
+
+type NumericField = (typeof NUMERIC_FIELDS)[number];
+
+function toDisplayString(value: number | undefined): string {
+  return value == null ? "" : String(value);
+}
+
+function parseNumeric(raw: string): number {
+  const cleaned = raw.replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+function initDraft(): Record<NumericField, string> {
+  return {
+    restBeforeSleepMinutes: toDisplayString(FORM_DEFAULTS.restBeforeSleepMinutes),
+    totalTargetScoops: toDisplayString(FORM_DEFAULTS.totalTargetScoops),
+    stomachCapacityOz: toDisplayString(FORM_DEFAULTS.stomachCapacityOz),
+    waterOzPerScoop: toDisplayString(FORM_DEFAULTS.waterOzPerScoop),
+    firstMealScoops: "",
+    firstMealWaterOz: "",
+  };
+}
+
 export function FeedingForm({ onCalculate }: FeedingFormProps) {
   const [form, setForm] = useState<FeedingInput>(FORM_DEFAULTS);
+  const [draft, setDraft] = useState(initDraft);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [customFirstMeal, setCustomFirstMeal] = useState(false);
 
@@ -31,14 +64,32 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
     setErrors((prev) => prev.filter((e) => e.field !== field));
   }
 
+  function handleNumericInput(field: NumericField, raw: string) {
+    const cleaned = raw.replace(",", ".");
+    setDraft((prev) => ({ ...prev, [field]: cleaned }));
+  }
+
+  function commitNumericField(field: NumericField) {
+    const value = parseNumeric(draft[field]);
+    setDraft((prev) => ({ ...prev, [field]: toDisplayString(value || undefined) }));
+    handleChange(field, value);
+  }
+
   function handleCustomFirstMealToggle(checked: boolean) {
     setCustomFirstMeal(checked);
     if (checked) {
+      const scoops = form.firstMealScoops ?? 2;
+      const water = form.firstMealWaterOz ?? 4;
       setForm((prev) => ({
         ...prev,
         customFirstMeal: true,
-        firstMealScoops: prev.firstMealScoops ?? 2,
-        firstMealWaterOz: prev.firstMealWaterOz ?? 4,
+        firstMealScoops: scoops,
+        firstMealWaterOz: water,
+      }));
+      setDraft((prev) => ({
+        ...prev,
+        firstMealScoops: toDisplayString(scoops),
+        firstMealWaterOz: toDisplayString(water),
       }));
     } else {
       setForm((prev) => ({
@@ -47,6 +98,11 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
         firstMealTime: prev.wakeUpTime,
         firstMealScoops: undefined,
         firstMealWaterOz: undefined,
+      }));
+      setDraft((prev) => ({
+        ...prev,
+        firstMealScoops: "",
+        firstMealWaterOz: "",
       }));
       setErrors((prev) =>
         prev.filter(
@@ -61,13 +117,24 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationErrors = validateInput(form);
+    const resolved: FeedingInput = {
+      ...form,
+      restBeforeSleepMinutes: parseNumeric(draft.restBeforeSleepMinutes),
+      totalTargetScoops: parseNumeric(draft.totalTargetScoops),
+      stomachCapacityOz: parseNumeric(draft.stomachCapacityOz),
+      waterOzPerScoop: parseNumeric(draft.waterOzPerScoop),
+      ...(customFirstMeal && {
+        firstMealScoops: parseNumeric(draft.firstMealScoops),
+        firstMealWaterOz: parseNumeric(draft.firstMealWaterOz),
+      }),
+    };
+    const validationErrors = validateInput(resolved);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
     }
     setErrors([]);
-    onCalculate(form);
+    onCalculate(resolved);
   }
 
   return (
@@ -123,23 +190,17 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
                       <Input
                         label="Scoops"
                         type="number"
-                        min={0.5}
-                        step={0.5}
-                        value={form.firstMealScoops ?? ""}
-                        onChange={(e) =>
-                          handleChange("firstMealScoops" as keyof FeedingInput, Number(e.target.value))
-                        }
+                        value={draft.firstMealScoops}
+                        onChange={(e) => handleNumericInput("firstMealScoops", e.target.value)}
+                        onBlur={() => commitNumericField("firstMealScoops")}
                         error={fieldError("firstMealScoops" as keyof FeedingInput)}
                       />
                       <Input
                         label="Water"
                         type="number"
-                        min={0.5}
-                        step={0.5}
-                        value={form.firstMealWaterOz ?? ""}
-                        onChange={(e) =>
-                          handleChange("firstMealWaterOz" as keyof FeedingInput, Number(e.target.value))
-                        }
+                        value={draft.firstMealWaterOz}
+                        onChange={(e) => handleNumericInput("firstMealWaterOz", e.target.value)}
+                        onBlur={() => commitNumericField("firstMealWaterOz")}
                         error={fieldError("firstMealWaterOz" as keyof FeedingInput)}
                         suffix="oz"
                       />
@@ -165,13 +226,9 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
               <Input
                 label="Rest Before Sleep"
                 type="number"
-                min={0}
-                max={120}
-                step={5}
-                value={form.restBeforeSleepMinutes}
-                onChange={(e) =>
-                  handleChange("restBeforeSleepMinutes", Number(e.target.value))
-                }
+                value={draft.restBeforeSleepMinutes}
+                onChange={(e) => handleNumericInput("restBeforeSleepMinutes", e.target.value)}
+                onBlur={() => commitNumericField("restBeforeSleepMinutes")}
                 error={fieldError("restBeforeSleepMinutes")}
                 suffix="min"
                 hint="Time between last feed and bedtime"
@@ -187,24 +244,18 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
               <Input
                 label="Total Target Scoops"
                 type="number"
-                min={1}
-                step={0.5}
-                value={form.totalTargetScoops}
-                onChange={(e) =>
-                  handleChange("totalTargetScoops", Number(e.target.value))
-                }
+                value={draft.totalTargetScoops}
+                onChange={(e) => handleNumericInput("totalTargetScoops", e.target.value)}
+                onBlur={() => commitNumericField("totalTargetScoops")}
                 error={fieldError("totalTargetScoops")}
                 hint="Formula scoops for the entire day"
               />
               <Input
                 label="Stomach Capacity"
                 type="number"
-                min={0.5}
-                step={0.5}
-                value={form.stomachCapacityOz}
-                onChange={(e) =>
-                  handleChange("stomachCapacityOz", Number(e.target.value))
-                }
+                value={draft.stomachCapacityOz}
+                onChange={(e) => handleNumericInput("stomachCapacityOz", e.target.value)}
+                onBlur={() => commitNumericField("stomachCapacityOz")}
                 error={fieldError("stomachCapacityOz")}
                 suffix="oz"
                 hint="Max oz per single feeding"
@@ -212,12 +263,9 @@ export function FeedingForm({ onCalculate }: FeedingFormProps) {
               <Input
                 label="Water per Scoop"
                 type="number"
-                min={0.5}
-                step={0.5}
-                value={form.waterOzPerScoop}
-                onChange={(e) =>
-                  handleChange("waterOzPerScoop", Number(e.target.value))
-                }
+                value={draft.waterOzPerScoop}
+                onChange={(e) => handleNumericInput("waterOzPerScoop", e.target.value)}
+                onBlur={() => commitNumericField("waterOzPerScoop")}
                 error={fieldError("waterOzPerScoop")}
                 suffix="oz"
                 hint="Formula brand ratio"

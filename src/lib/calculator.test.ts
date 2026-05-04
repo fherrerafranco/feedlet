@@ -204,7 +204,9 @@ describe("computeSchedule", () => {
   });
 
   it("returns no warnings for a normal schedule", () => {
-    const schedule = computeSchedule(makeInput());
+    const schedule = computeSchedule(
+      makeInput({ stomachCapacityOz: 8, restBeforeSleepMinutes: 15 }),
+    );
     expect(schedule.warnings).toEqual([]);
   });
 

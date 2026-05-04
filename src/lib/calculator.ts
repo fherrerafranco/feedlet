@@ -101,8 +101,9 @@ export function validateInput(input: FeedingInput): ValidationError[] {
     }
   }
 
-  const lastFeedMinutes = nightSleep - input.restBeforeSleepMinutes;
-  if (lastFeedMinutes <= firstMeal) {
+  const lastFeedEnd = nightSleep - input.restBeforeSleepMinutes;
+  const lastFeedStart = lastFeedEnd - SESSION_DURATION_AVG_MINUTES;
+  if (lastFeedStart <= firstMeal) {
     errors.push({
       field: "restBeforeSleepMinutes",
       message: "Rest time is too long — no feeding window remains",
@@ -119,9 +120,10 @@ export function computeSchedule(input: FeedingInput): FeedingSchedule {
 
   const firstMealMin = timeToMinutes(input.firstMealTime);
   const nightSleepMin = timeToMinutes(input.nightSleepTime);
-  const lastFeedMin = nightSleepMin - input.restBeforeSleepMinutes;
+  const lastFeedStartMin =
+    nightSleepMin - input.restBeforeSleepMinutes - SESSION_DURATION_AVG_MINUTES;
 
-  const windowMinutes = lastFeedMin - firstMealMin;
+  const windowMinutes = lastFeedStartMin - firstMealMin;
   const windowHours = windowMinutes / 60;
 
   const minIntervalMinutes = MIN_INTERVAL_HOURS * 60;

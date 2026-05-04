@@ -9,8 +9,9 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, suffix, className, id, ...props }, ref) => {
+  ({ label, error, hint, suffix, className, id, type, ...props }, ref) => {
     const inputId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+    const isNumber = type === "number";
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -26,6 +27,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             id={inputId}
             ref={ref}
+            type={isNumber ? "text" : type}
+            inputMode={isNumber ? "decimal" : undefined}
             className={cn(
               "w-full rounded-xl border border-surface-300 bg-surface-50 px-4 py-2.5 text-sm transition-all duration-200",
               "placeholder:text-gray-400",
